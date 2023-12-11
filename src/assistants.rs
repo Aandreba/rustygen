@@ -1,2 +1,2 @@
-pub mod chatgpt;
 pub mod chess;
+pub mod gpt;

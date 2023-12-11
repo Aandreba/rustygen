@@ -1,20 +1,83 @@
-use crate::record::Record;
+use crate::{control_flow::error::Catch, record::Record};
 use libopenai::chat::Role;
-use std::{future::Future, marker::PhantomData, pin::Pin};
+use std::{future::Future, marker::PhantomData, pin::Pin, rc::Rc, sync::Arc};
 
-/// TODO
 pub trait Agent<R: Record> {
     type Error: Into<color_eyre::Report>;
 
+    #[allow(async_fn_in_trait)]
     async fn handle(&mut self, record: &mut R) -> Result<(), Self::Error>;
+
+    /// Catches the error returned by this agent, and handles it
+    fn catch<F: FnMut(Self::Error) -> Result<A, Self::Error>, A: Agent<R>>(
+        self,
+        f: F,
+    ) -> Catch<Self, F>
+    where
+        Self: Sized,
+    {
+        return Catch { agent: self, f };
+    }
 }
 
 /// An agent that can be executed through shared reference
 pub trait AgentRef<R: Record>: Agent<R> {
+    #[allow(async_fn_in_trait)]
     async fn handle_ref(&self, record: &mut R) -> Result<(), Self::Error>;
+
+    /// Catches the error returned by this agent, and handles it
+    fn catch_ref<F: Fn(Self::Error) -> Result<A, Self::Error>, A: Agent<R>>(
+        self,
+        f: F,
+    ) -> Catch<Self, F>
+    where
+        Self: Sized,
+    {
+        return Catch { agent: self, f };
+    }
 }
 
 /* BLANKET IMPLS */
+impl<R: Record, E: Clone + Into<color_eyre::Report>> Agent<R> for Result<(), E> {
+    type Error = E;
+
+    #[inline]
+    async fn handle(&mut self, _: &mut R) -> Result<(), Self::Error> {
+        return self.clone();
+    }
+}
+
+impl<R: Record, E: Clone + Into<color_eyre::Report>> AgentRef<R> for Result<(), E> {
+    #[inline]
+    async fn handle_ref(&self, _: &mut R) -> Result<(), Self::Error> {
+        return self.clone();
+    }
+}
+
+impl<R: Record, A: Agent<R>> Agent<R> for Box<A> {
+    type Error = A::Error;
+
+    async fn handle(&mut self, record: &mut R) -> Result<(), Self::Error> {
+        A::handle(self, record).await
+    }
+}
+
+impl<R: Record, A: AgentRef<R>> Agent<R> for Rc<A> {
+    type Error = A::Error;
+
+    async fn handle(&mut self, record: &mut R) -> Result<(), Self::Error> {
+        A::handle_ref(self, record).await
+    }
+}
+
+impl<R: Record, A: AgentRef<R>> Agent<R> for Arc<A> {
+    type Error = A::Error;
+
+    async fn handle(&mut self, record: &mut R) -> Result<(), Self::Error> {
+        A::handle_ref(self, record).await
+    }
+}
+
 impl<R: Record, A: Agent<R>> Agent<R> for &mut A {
     type Error = A::Error;
 
@@ -27,6 +90,18 @@ impl<R: Record, A: AgentRef<R>> Agent<R> for &A {
     type Error = A::Error;
 
     async fn handle(&mut self, record: &mut R) -> Result<(), Self::Error> {
+        A::handle_ref(self, record).await
+    }
+}
+
+impl<R: Record, A: AgentRef<R>> AgentRef<R> for Rc<A> {
+    async fn handle_ref(&self, record: &mut R) -> Result<(), Self::Error> {
+        A::handle_ref(self, record).await
+    }
+}
+
+impl<R: Record, A: AgentRef<R>> AgentRef<R> for Arc<A> {
+    async fn handle_ref(&self, record: &mut R) -> Result<(), Self::Error> {
         A::handle_ref(self, record).await
     }
 }
@@ -103,7 +178,7 @@ pub(crate) struct DynAgentVTable<R> {
 impl<R: Record> DynAgentVTable<R> {
     pub const fn new<A: Agent<R>>() -> Self {
         fn drop_agent<R: Record, A: Agent<R>>(ptr: *mut ()) {
-            unsafe { core::ptr::drop_in_place(ptr.cast::<A>()) }
+            unsafe { drop(Box::from_raw(ptr.cast::<A>())) }
         }
 
         fn handle_agent<'a, R: Record, A: Agent<R>>(

@@ -1,7 +1,17 @@
 use crate::{agent::Agent, record::Record};
 use chess::ChessMove;
 use chessgineer::{game::Game, Context};
+use failure::{Compat, Fail};
 use std::{ffi::OsStr, str::FromStr, time::Duration};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("{0}")]
+    Chess(Compat<chess::Error>),
+    #[error("Illegal move: {0}")]
+    IllegalMove(ChessMove),
+}
 
 pub struct ChessEngine {
     cx: Context,
@@ -19,7 +29,7 @@ impl ChessEngine {
 }
 
 impl Record for chess::Game {
-    type Error = chess::Error;
+    type Error = Error;
 
     fn push(
         &mut self,
@@ -27,10 +37,12 @@ impl Record for chess::Game {
         content: impl Into<crate::Str>,
     ) -> Result<(), Self::Error> {
         let content = content.into();
-        let chess_move = ChessMove::from_str(&content)?;
+        let chess_move = ChessMove::from_str(&content).map_err(|e| Error::Chess(e.compat()))?;
+
         if !self.make_move(chess_move) {
-            return Err(chess::Error::InvalidBoard);
+            return Err(Error::IllegalMove(chess_move));
         }
+
         return Ok(());
     }
 }

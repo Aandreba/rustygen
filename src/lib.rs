@@ -16,7 +16,7 @@ pub(crate) type Str = Cow<'static, str>;
 pub trait Conversation<'a, R: 'static + Record> {
     fn agent<A: 'a + Agent<R>>(self, agent: A) -> Self;
 
-    fn loop_while<F: 'a + FnMut(&mut R) -> bool>(self, predicate: F) -> WhileBuilder<'a, R, F, Self>
+    fn while_loop<F: 'a + FnMut(&mut R) -> bool>(self, predicate: F) -> WhileBuilder<'a, R, F, Self>
     where
         Self: Sized,
     {
@@ -64,5 +64,13 @@ impl<'a, R: Record> Conversation<'a, R> for MainConversation<'a, R> {
     fn agent<A: 'a + Agent<R>>(mut self, agent: A) -> Self {
         self.agents.push(DynAgent::from_agent(agent));
         self
+    }
+}
+
+impl<'a, R: Record> Agent<R> for MainConversation<'a, R> {
+    type Error = color_eyre::Report;
+
+    async fn handle(&mut self, record: &mut R) -> Result<(), Self::Error> {
+        self.play_with(record).await
     }
 }

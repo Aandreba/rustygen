@@ -9,8 +9,10 @@ edition = "2021"
 chess = "3.2.0"
 chessgineer = { git = "https://github.com/Aandreba/chessgineer", version = "0.1.0" }
 color-eyre = "0.6.2"
+elor = "1.1.4"
 failure = "0.1.8"
 libopenai = "0.1.0"
+thiserror = "1.0.50"
 tokio = { version = "1.35.0", features = ["full"] }
 
 [dev-dependencies]

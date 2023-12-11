@@ -58,8 +58,10 @@ dependencies = [
  "chessgineer",
  "color-eyre",
  "dotenv",
+ "elor",
  "failure",
  "libopenai",
+ "thiserror",
  "tokio",
 ]
 

@@ -1,5 +1,9 @@
 use autogen::{
-    assistants::{chatgpt::ChatGPT, chess::ChessEngine},
+    agent::{Agent, AgentRef},
+    assistants::{
+        chess::ChessEngine,
+        gpt::{ChessError, ChessGPT},
+    },
     Conversation, MainConversation,
 };
 use chess::Action;
@@ -12,15 +16,27 @@ async fn main() -> color_eyre::Result<()> {
     dotenv::dotenv()?;
     let client = Client::new(None, None)?;
 
+    // Backup stockfish engin for whenever ChatGPT fails generating a legal move
+    let mut backup_stockfish =
+        ChessEngine::new("./stockfish-ubuntu-x86-64", Duration::from_secs(1)).await?;
+
     let mut i = 0;
     let mut conversation = MainConversation::<chess::Game>::new()
-        .loop_while(|game| {
+        .while_loop(|game| {
             println!("Round {i}");
             i += 1;
             game.result().is_none()
         })
         .agent(ChessEngine::new("./stockfish-ubuntu-x86-64", Duration::from_secs(1)).await?)
-        .agent(ChatGPT::new("gpt-3.5-turbo", client))
+        .agent(
+            ChessGPT::new("gpt-3.5-turbo", client, 5).catch(|e| match e {
+                ChessError::NoLegalMoveFound => {
+                    println!("Resorting to Stockfish for GPT's move");
+                    Ok(&mut backup_stockfish)
+                }
+                e => Err(e),
+            }),
+        )
         .end_while();
 
     let mut game = chess::Game::new();
