@@ -4,7 +4,7 @@ use std::{future::Future, marker::PhantomData, pin::Pin};
 
 /// TODO
 pub trait Agent<R: Record> {
-    type Error: 'static + std::error::Error + Send + Sync;
+    type Error: Into<color_eyre::Report>;
 
     async fn handle(&mut self, record: &mut R) -> Result<(), Self::Error>;
 }
@@ -112,7 +112,7 @@ impl<R: Record> DynAgentVTable<R> {
         ) -> Pin<Box<dyn 'a + Future<Output = color_eyre::Result<()>>>> {
             return Box::pin(async move {
                 let this = unsafe { &mut *ptr.cast::<A>() };
-                return this.handle(record).await.map_err(color_eyre::Report::from);
+                return this.handle(record).await.map_err(Into::into);
             });
         }
 
