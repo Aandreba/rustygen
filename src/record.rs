@@ -3,7 +3,7 @@ use libopenai::chat::{Message, Role};
 use std::convert::Infallible;
 
 /// A record of the back-and-forth between the various agents
-pub trait Record {
+pub trait Record: 'static {
     type Error;
 
     fn push(&mut self, role: Role, content: impl Into<Str>) -> Result<(), Self::Error>;

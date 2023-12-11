@@ -1,6 +1,6 @@
 use autogen::{
     assistants::{chatgpt::ChatGPT, chess::ChessEngine},
-    Conversation,
+    Conversation, MainConversation,
 };
 use chess::Action;
 use libopenai::Client;
@@ -13,8 +13,7 @@ async fn main() -> color_eyre::Result<()> {
     let client = Client::new(None, None)?;
 
     let mut i = 0;
-    let mut conversation = Conversation::<chess::Game>::new();
-    conversation
+    let mut conversation = MainConversation::<chess::Game>::new()
         .loop_while(|game| {
             println!("Round {i}");
             i += 1;

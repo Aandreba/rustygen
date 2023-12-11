@@ -13,37 +13,36 @@ pub mod record;
 pub(crate) type Str = Cow<'static, str>;
 
 /// Defines the structure of the desired conversation between agents
+pub trait Conversation<'a, R: 'static + Record> {
+    fn agent<A: 'a + Agent<R>>(self, agent: A) -> Self;
+
+    fn loop_while<F: 'a + FnMut(&mut R) -> bool>(self, predicate: F) -> WhileBuilder<'a, R, F, Self>
+    where
+        Self: Sized,
+    {
+        return WhileBuilder {
+            parent: self,
+            child: While {
+                predicate,
+                conversation: MainConversation::new(),
+            },
+        };
+    }
+}
+
 #[derive(Default)]
-pub struct Conversation<'a, R: 'static> {
+pub struct MainConversation<'a, R: 'static> {
     agents: Vec<DynAgent<'a, R>>,
 }
 
-impl<'a, R> Conversation<'a, R> {
+impl<'a, R> MainConversation<'a, R> {
     /// Creates a new conversation
     pub fn new() -> Self {
         return Self { agents: Vec::new() };
     }
 }
 
-impl<'a, R: Record> Conversation<'a, R> {
-    pub fn loop_while<F: 'a + FnMut(&mut R) -> bool>(
-        &mut self,
-        predicate: F,
-    ) -> WhileBuilder<'a, '_, R, F> {
-        return WhileBuilder {
-            parent: self,
-            child: While {
-                predicate,
-                conversation: Conversation::new(),
-            },
-        };
-    }
-
-    pub fn agent<A: 'a + Agent<R>>(&mut self, agent: A) -> &mut Self {
-        self.agents.push(DynAgent::from_agent(agent));
-        self
-    }
-
+impl<'a, R: Record> MainConversation<'a, R> {
     pub async fn play(&mut self) -> color_eyre::Result<R>
     where
         R: Default,
@@ -58,5 +57,12 @@ impl<'a, R: Record> Conversation<'a, R> {
             agent.handle(record).await?
         }
         return Ok(());
+    }
+}
+
+impl<'a, R: Record> Conversation<'a, R> for MainConversation<'a, R> {
+    fn agent<A: 'a + Agent<R>>(mut self, agent: A) -> Self {
+        self.agents.push(DynAgent::from_agent(agent));
+        self
     }
 }
