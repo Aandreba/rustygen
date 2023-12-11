@@ -103,12 +103,9 @@ impl Agent<chess::Game> for ChessGPT {
 
 impl AgentRef<chess::Game> for ChessGPT {
     async fn handle_ref(&self, record: &mut chess::Game) -> Result<(), Self::Error> {
-        let mut messages = vec![Message::system(
-            "You're a chess engine. Respond only with the next move to play, based on the previous moves, using the UCI format.",
-        )];
-
         let mut is_assistant = record.side_to_move() == Color::White;
-        messages.reserve(record.actions().len());
+        let mut messages = Vec::with_capacity(2 * record.actions().len());
+
         for action in record.actions() {
             if let chess::Action::MakeMove(chess_move) = action {
                 messages.push(Message::new(
@@ -117,11 +114,21 @@ impl AgentRef<chess::Game> for ChessGPT {
                         .unwrap_or(Role::User),
                     chess_move.to_string(),
                 ));
+
                 is_assistant = !is_assistant
             }
         }
 
+        let mut illegal_moves = Vec::with_capacity(self.max_tries);
         for _ in 0..self.max_tries {
+            let mut messages = messages.clone();
+            messages.push(Message::system(
+                format!("You're a chess engine. Respond only with the next move to play, based on the previous moves{}, using the UCI format. The current state of the board is {} (using FEN notation).",
+                illegal_moves.is_empty().then(|| format!(" and knowing ({}) are illegal moves.",
+                illegal_moves.join(", "))).unwrap_or_default(),
+                record.current_position().to_string()),
+            ));
+
             let mut chat =
                 ChatCompletion::new(self.model.deref(), messages.clone(), &self.client).await?;
 
@@ -129,13 +136,30 @@ impl AgentRef<chess::Game> for ChessGPT {
                 return Err(ChessError::ChatGpt(Error::msg("No response choices found")));
             }
 
-            match record.push_message(chat.choices.swap_remove(0).message) {
+            let mut msg = chat.choices.swap_remove(0).message;
+            println!("{msg:?}");
+
+            // Transform response into valid UCI move format
+            if msg.content.ends_with(|c: char| !c.is_alphanumeric()) {
+                let _ = msg.content.to_mut().pop();
+            }
+            msg.content = Str::Owned(
+                msg.content
+                    .split_whitespace()
+                    .last()
+                    .unwrap_or(&msg.content)
+                    .to_string(),
+            );
+
+            match record.push_message(msg) {
                 Ok(_) => return Ok(()),
                 Err(super::chess::Error::IllegalMove(chess_move)) => {
-                    messages.push(Message::user(format!("{chess_move} is an illegal move")));
+                    illegal_moves.push(chess_move.to_string());
                     continue;
                 }
-                Err(super::chess::Error::Chess(e)) => return Err(ChessError::Chess(e)),
+                Err(super::chess::Error::Chess(e)) => {
+                    return Err(ChessError::Chess(e));
+                }
             }
         }
 

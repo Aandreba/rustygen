@@ -9,7 +9,11 @@ pub trait Agent<R: Record> {
     async fn handle(&mut self, record: &mut R) -> Result<(), Self::Error>;
 
     /// Catches the error returned by this agent, and handles it
-    fn catch<F: FnMut(Self::Error) -> Result<A, Self::Error>, A: Agent<R>>(
+    fn catch<
+        F: FnMut(Self::Error) -> Fut,
+        Fut: Future<Output = Result<A, Self::Error>>,
+        A: Agent<R>,
+    >(
         self,
         f: F,
     ) -> Catch<Self, F>
@@ -26,7 +30,11 @@ pub trait AgentRef<R: Record>: Agent<R> {
     async fn handle_ref(&self, record: &mut R) -> Result<(), Self::Error>;
 
     /// Catches the error returned by this agent, and handles it
-    fn catch_ref<F: Fn(Self::Error) -> Result<A, Self::Error>, A: Agent<R>>(
+    fn catch_ref<
+        F: Fn(Self::Error) -> Fut,
+        Fut: Future<Output = Result<A, Self::Error>>,
+        A: Agent<R>,
+    >(
         self,
         f: F,
     ) -> Catch<Self, F>

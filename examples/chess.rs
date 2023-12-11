@@ -1,5 +1,5 @@
 use autogen::{
-    agent::{Agent, AgentRef},
+    agent::Agent,
     assistants::{
         chess::ChessEngine,
         gpt::{ChessError, ChessGPT},
@@ -16,10 +16,6 @@ async fn main() -> color_eyre::Result<()> {
     dotenv::dotenv()?;
     let client = Client::new(None, None)?;
 
-    // Backup stockfish engin for whenever ChatGPT fails generating a legal move
-    let mut backup_stockfish =
-        ChessEngine::new("./stockfish-ubuntu-x86-64", Duration::from_secs(1)).await?;
-
     let mut i = 0;
     let mut conversation = MainConversation::<chess::Game>::new()
         .while_loop(|game| {
@@ -29,18 +25,27 @@ async fn main() -> color_eyre::Result<()> {
         })
         .agent(ChessEngine::new("./stockfish-ubuntu-x86-64", Duration::from_secs(1)).await?)
         .agent(
-            ChessGPT::new("gpt-3.5-turbo", client, 5).catch(|e| match e {
-                ChessError::NoLegalMoveFound => {
-                    println!("Resorting to Stockfish for GPT's move");
-                    Ok(&mut backup_stockfish)
+            ChessGPT::new("gpt-3.5-turbo", client, 5).catch(|e| async move {
+                match e {
+                    // Fall back to Stockfish whenever ChatGPT fails generating a legal move
+                    ChessError::NoLegalMoveFound => {
+                        println!("Resorting to Stockfish for GPT's move");
+                        Ok(
+                            ChessEngine::new("./stockfish-ubuntu-x86-64", Duration::from_secs(1))
+                                .await
+                                .unwrap(),
+                        )
+                    }
+                    e => Err(e),
                 }
-                e => Err(e),
             }),
         )
         .end_while();
 
     let mut game = chess::Game::new();
-    let _ = conversation.play_with(&mut game).await;
+    if let Err(e) = conversation.play_with(&mut game).await {
+        eprintln!("{e}");
+    }
 
     for action in game.actions() {
         match action {
