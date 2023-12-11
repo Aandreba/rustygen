@@ -54,5 +54,6 @@ async fn main() -> color_eyre::Result<()> {
         }
     }
 
+    println!("{}", game.current_position().to_string());
     return Ok(());
 }

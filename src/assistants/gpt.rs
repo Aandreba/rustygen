@@ -137,8 +137,6 @@ impl AgentRef<chess::Game> for ChessGPT {
             }
 
             let mut msg = chat.choices.swap_remove(0).message;
-            println!("{msg:?}");
-
             // Transform response into valid UCI move format
             if msg.content.ends_with(|c: char| !c.is_alphanumeric()) {
                 let _ = msg.content.to_mut().pop();
