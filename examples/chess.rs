@@ -1,4 +1,6 @@
-use autogen::{
+use chess::Action;
+use libopenai::Client;
+use rustygen::{
     agent::Agent,
     assistants::{
         chess::ChessEngine,
@@ -6,8 +8,6 @@ use autogen::{
     },
     Conversation, MainConversation,
 };
-use chess::Action;
-use libopenai::Client;
 use std::time::Duration;
 
 #[tokio::main]

@@ -5,7 +5,7 @@
 **Basic**
 
 ```rust
-use autogen::{assistants::gpt::ChatGPT, record::ChatRecord, Conversation, MainConversation};
+use rustygen::{assistants::gpt::ChatGPT, record::ChatRecord, Conversation, MainConversation};
 use libopenai::Client;
 
 #[tokio::main]
@@ -27,7 +27,7 @@ async fn main() -> color_eyre::Result<()> {
 **Chess**
 
 ```rust
-use autogen::{
+use rustygen::{
     agent::Agent,
     assistants::{
         chess::ChessEngine,

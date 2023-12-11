@@ -1,5 +1,5 @@
-use autogen::{assistants::gpt::ChatGPT, record::ChatRecord, Conversation, MainConversation};
 use libopenai::Client;
+use rustygen::{assistants::gpt::ChatGPT, record::ChatRecord, Conversation, MainConversation};
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
