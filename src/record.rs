@@ -1,13 +1,26 @@
 use crate::Str;
 use libopenai::chat::{Message, Role};
+use std::convert::Infallible;
 
 /// A record of the back-and-forth between the various agents
+pub trait Record {
+    type Error;
+
+    fn push(&mut self, role: Role, content: impl Into<Str>) -> Result<(), Self::Error>;
+
+    #[inline]
+    fn push_message(&mut self, message: Message<'static>) -> Result<(), Self::Error> {
+        self.push(message.role, message.content)
+    }
+}
+
+/// A chat-based record
 #[derive(Debug, Clone)]
-pub struct Record {
+pub struct ChatRecord {
     messages: Vec<Message<'static>>,
 }
 
-impl Record {
+impl ChatRecord {
     pub fn new() -> Self {
         return Self {
             messages: Vec::new(),
@@ -18,19 +31,25 @@ impl Record {
     pub fn messages(&self) -> &[Message<'static>] {
         return &self.messages;
     }
+}
+
+impl Record for ChatRecord {
+    type Error = Infallible;
 
     #[inline]
-    pub fn push(&mut self, role: Role, content: impl Into<Str>) {
-        return self.messages.push(Message::new(role, content));
+    fn push(&mut self, role: Role, content: impl Into<Str>) -> Result<(), Self::Error> {
+        self.messages.push(Message::new(role, content));
+        return Ok(());
     }
 
     #[inline]
-    pub fn push_message(&mut self, message: Message<'static>) {
-        self.messages.push(message)
+    fn push_message(&mut self, message: Message<'static>) -> Result<(), Self::Error> {
+        self.messages.push(message);
+        return Ok(());
     }
 }
 
-impl Default for Record {
+impl Default for ChatRecord {
     fn default() -> Self {
         Self::new()
     }
