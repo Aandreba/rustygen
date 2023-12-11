@@ -1,0 +1,15 @@
+[package]
+name = "autogen"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chessgineer = { git = "https://github.com/Aandreba/chessgineer", version = "0.1.0" }
+color-eyre = "0.6.2"
+libopenai = "0.1.0"
+tokio = { version = "1.35.0", features = ["full"] }
+
+[dev-dependencies]
+dotenv = "0.15.0"
